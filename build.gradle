@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'application'
+    id "io.freefair.lombok" version "5.0.0-rc4"
 }
 
 group 'com.senior_design'
@@ -13,9 +13,5 @@ repositories {
 }
 
 dependencies {
-
-}
-
-application {
-    mainClassName = 'com.senior_design.filewatcher.Main'
+    implementation 'net.sourceforge.argparse4j:argparse4j:0.8.1'
 }
