@@ -1,11 +1,11 @@
 package com.senior_design.filewatcher;
 
-import net.sourceforge.argparse4j.inf.ArgumentParserException;
-
 public class Main {
-    public static void main(String[] args) throws ArgumentParserException {
+    public static void main(String[] args) throws Exception {
+        System.out.println("Test");
         Arguments parsedArgs = new Arguments(args);
-        System.out.println(parsedArgs);
+        FileWatcher fw = new FileWatcher(parsedArgs);
+        fw.run().join();
     }
 
 }

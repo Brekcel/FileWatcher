@@ -14,7 +14,7 @@ public class Arguments {
 
     public Arguments(String[] args) throws ArgumentParserException {
         ArgumentParser ap = ArgumentParsers.newFor("FileWatcher").build().defaultHelp(true).description("PDF FileWatching program");
-        ap.addArgument("-p", "--path").help("The path to the directory to watch for PDF's to be added to");
+        ap.addArgument("-p", "--path").help("The path to the directory to watch for PDF's to be added to").required(true).setDefault("./watch");
         Namespace ns = ap.parseArgs(args);
         watchPath = ns.getString("path");
     }
