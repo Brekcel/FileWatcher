@@ -1,3 +1,5 @@
 .idea/
 build/
 FileWatcher.7z
+tmp/
+out/
