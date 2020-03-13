@@ -3,3 +3,4 @@ build/
 FileWatcher.7z
 tmp/
 out/
+watch/*
