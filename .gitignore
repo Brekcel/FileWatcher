@@ -1,6 +1,7 @@
 .idea/
 build/
 FileWatcher.7z
-tmp/
-out/
+tmp/*
+out/*
 watch/*
+saved/*
