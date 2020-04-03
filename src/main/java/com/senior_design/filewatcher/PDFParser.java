@@ -3,6 +3,7 @@ package com.senior_design.filewatcher;
 import nu.pattern.OpenCV;
 import org.apache.pdfbox.multipdf.Splitter;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.opencv.core.Core;
@@ -12,8 +13,8 @@ import org.opencv.core.Point;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ public class PDFParser implements AutoCloseable {
 
     PDDocument doc;
     PDFRenderer pdr;
+    final Object renderMutex = new Object();
 
     public PDFParser(Arguments args, File file) throws IOException {
         doc = PDDocument.load(file);
@@ -51,39 +53,37 @@ public class PDFParser implements AutoCloseable {
         }
     }
 
-    public String[] text() throws IOException {
-        PDFTextStripper stripper = new PDFTextStripper();
-        stripper.setSortByPosition(true);
-        String[] pages = new String[doc.getNumberOfPages()];
-        for (int page = 0; page < pages.length; page += 1) {
-            stripper.setStartPage(page + 1);
-            stripper.setEndPage(page + 1);
-            pages[page] = stripper.getText(doc);
-        }
-        return pages;
-    }
-
-    File indexToFile(int i) {
-        return new File("./tmp/" + i + ".png");
-    }
+//    public String[] text() throws IOException {
+//        PDFTextStripper stripper = new PDFTextStripper();
+//        stripper.setSortByPosition(true);
+//        String[] pages = new String[doc.getNumberOfPages()];
+//        for (int page = 0; page < pages.length; page += 1) {
+//            stripper.setStartPage(page + 1);
+//            stripper.setEndPage(page + 1);
+//            pages[page] = stripper.getText(doc);
+//        }
+//        return pages;
+//    }
+//
+//    File indexToFile(int i) {
+//        return new File("./tmp/" + i + ".png");
+//    }
 
     public PDDocument[] splitDoc() throws IOException {
-        IntStream.range(0, doc.getNumberOfPages()).forEach(i -> {
-            BufferedImage bi = null;
-            try {
-                bi = pdr.renderImage(i);
-                File tmpFile = indexToFile(i);
-                ImageIO.write(bi, "png", tmpFile);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
-
         ArrayList<EndPagePair> splitPages = IntStream.range(0, doc.getNumberOfPages())
                 .parallel()
                 .filter(i -> {
-                    File tmpFile = indexToFile(i);
-                    Mat page = Imgcodecs.imread(tmpFile.getPath(), Imgcodecs.IMREAD_GRAYSCALE);
+                    BufferedImage bi = null;
+                    try {
+                        synchronized (renderMutex) {
+                            bi = pdr.renderImage(i, 1, ImageType.GRAY);
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        return false;
+                    }
+                    Mat page = new Mat(bi.getHeight(), bi.getWidth(), CvType.CV_8UC1);
+                    page.put(0, 0, ((DataBufferByte) bi.getData().getDataBuffer()).getData());
 
                     int result_cols = page.cols() - linkedInTemplate.cols() + 1;
                     int result_rows = page.rows() - linkedInTemplate.rows() + 1;
@@ -118,7 +118,6 @@ public class PDFParser implements AutoCloseable {
                     if (maybeRecommendedLine.isPresent()) {
                         String recommendedLine = maybeRecommendedLine.get();
                         int numCount = Integer.parseInt(recommendedLine.substring(0, recommendedLine.indexOf(' ')));
-                        System.out.println("Old End Page: " + endPage);
                         StringBuilder pageText = new StringBuilder(assumedEndPageText);
                         while (true) {
                             int curIdx = 0;
@@ -143,7 +142,6 @@ public class PDFParser implements AutoCloseable {
                             endPage += 1;
                             pageText = new StringBuilder(stripPage.apply(endPage));
                         }
-                        System.out.println("New End Page: " + endPage);
                     }
                     pair.lastPageOfRecommends = endPage;
                     return pair;
@@ -162,10 +160,11 @@ public class PDFParser implements AutoCloseable {
             pdfSpliiter.setEndPage(endPage.lastPageOfResume);
             pdfSpliiter.setSplitAtPage(endPage.lastPageOfResume - start);
             List<PDDocument> splitDocs = pdfSpliiter.split(doc);
-
-            assert splitDocs.size() == 1;
             start = endPage.lastPageOfRecommends + 1;
             docs[i] = splitDocs.get(0);
+            for (int j = 1; j < splitDocs.size(); j += 1) {
+                splitDocs.get(j).close();
+            }
         }
 
         return docs;
@@ -176,6 +175,7 @@ public class PDFParser implements AutoCloseable {
     public void close() throws Exception {
         if (doc != null) {
             doc.close();
+            doc = null;
         }
     }
 }
