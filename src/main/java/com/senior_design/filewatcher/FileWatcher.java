@@ -5,6 +5,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
@@ -14,24 +15,29 @@ public class FileWatcher {
     private WatchKey watchKey;
     private Path watchPath;
     private Arguments args;
+    private AtomicBoolean isRunning;
 
-    public FileWatcher(Arguments args) throws IOException {
+    public FileWatcher(Arguments args, AtomicBoolean isRunning) throws IOException {
+        this.isRunning = isRunning;
         this.watchPath = Paths.get(args.getWatchPath());
         this.watchService = FileSystems.getDefault().newWatchService();
-        this.watchKey = Paths.get(args.getWatchPath()).register(this.watchService, ENTRY_CREATE);
+        this.watchKey = this.watchPath.register(this.watchService, ENTRY_CREATE);
         this.args = args;
     }
 
-    void run() {
-        System.out.println("Running from other thread");
-        while (true) {
+    public void run() {
+        while (isRunning.get()) {
             for (WatchEvent<?> event : watchKey.pollEvents()) {
                 WatchEvent.Kind<?> kind = event.kind();
                 if (kind == OVERFLOW) {
                     continue;
                 }
-                WatchEvent<Path> ev = (WatchEvent<Path>) event;
-                Path fileName = ev.context();
+
+                Object context = event.context();
+                if(!(context instanceof Path)) {
+                    break;
+                }
+                Path fileName = (Path) event.context();
                 // TMP Files
                 if (fileName.toString().endsWith("~")) {
                     continue;

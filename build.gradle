@@ -16,5 +16,20 @@ dependencies {
     compile group: 'net.sourceforge.argparse4j', name: 'argparse4j', version: '0.8.1'
     compile group: 'org.apache.pdfbox', name: 'pdfbox', version: '2.0.19'
     compile group: 'org.openpnp', name: 'opencv', version: '3.4.2-2'
+}
 
+task fatJar(type: Jar) {
+    manifest {
+        attributes 'Implementation-Title': 'Senior Design File Watching Program',
+                'Implementation-Version': version,
+                'Main-Class': 'com.senior_design.filewatcher.Main'
+    }
+    archiveName = "FileWatcher.jar"
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
+
+task fullBuild(type: Copy) {
+    from fatJar
+    into "./bin/"
 }
