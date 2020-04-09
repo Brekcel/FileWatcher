@@ -34,7 +34,7 @@ public class FileWatcher {
                 }
 
                 Object context = event.context();
-                if(!(context instanceof Path)) {
+                if (!(context instanceof Path)) {
                     break;
                 }
                 Path fileName = (Path) event.context();
@@ -45,11 +45,10 @@ public class FileWatcher {
                 Path actualPath = Paths.get(this.watchPath.toString(), fileName.toString());
                 try {
                     File f = actualPath.toFile();
-                    try (PDFParser p = new PDFParser(args, f)) {
-                        PDDocument[] docs = p.splitDoc();
-                        for (PDDocument doc : docs) {
-                            //TODO: Send them off to the solr bits
-                            doc.close();
+                    try (PDFSplitter splitter = new PDFSplitter(args, f)) {
+                        PDDocument[] docs = splitter.splitDoc();
+                        try (PDFParser parser = new PDFParser(args, docs)) {
+                            parser.run();
                         }
                     }
                     f.delete();
