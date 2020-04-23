@@ -23,10 +23,9 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 public class PDFSplitter implements AutoCloseable {
-    private class EndPagePair {
+    private static class EndPagePair {
         int lastPageOfResume;
         int lastPageOfRecommends;
 
@@ -43,13 +42,13 @@ public class PDFSplitter implements AutoCloseable {
     PDFRenderer pdr;
     final Object renderMutex = new Object();
 
-    public PDFSplitter(Arguments args, File file) throws IOException {
+    public PDFSplitter(File file) throws IOException {
         doc = PDDocument.load(file);
         pdr = new PDFRenderer(doc);
         synchronized (MUTEX) {
             if (linkedInTemplate == null) {
                 OpenCV.loadLocally();
-                linkedInTemplate = Imgcodecs.imread(args.getWatermark(), Imgcodecs.IMREAD_GRAYSCALE);
+                linkedInTemplate = Imgcodecs.imread(Arguments.the().getWatermark(), Imgcodecs.IMREAD_GRAYSCALE);
             }
         }
     }

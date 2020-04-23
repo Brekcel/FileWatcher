@@ -1,40 +1,43 @@
 package com.senior_design.filewatcher;
 
+import com.google.gson.Gson;
+import com.google.gson.annotations.SerializedName;
 import lombok.Data;
-import net.sourceforge.argparse4j.ArgumentParsers;
-import net.sourceforge.argparse4j.inf.ArgumentParser;
-import net.sourceforge.argparse4j.inf.ArgumentParserException;
-import net.sourceforge.argparse4j.inf.Namespace;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 
 @Data
 public class Arguments {
+    private static final Object[] MUTEX = new Object[0];
+    private static Arguments args;
 
+    @SerializedName("WatchPath")
     private String watchPath;
+
+    @SerializedName("WatermarkPath")
     private String watermark;
+
+    @SerializedName("SolrURL")
     private String solrUrl;
 
-    public Arguments(String[] args) throws ArgumentParserException {
-        ArgumentParser ap = ArgumentParsers.newFor("FileWatcher").build().defaultHelp(true).description("PDF FileWatching program");
-
-        ap.addArgument("-p", "--path")
-                .help("The path to the directory to watch for PDF's to be added to")
-                .required(true)
-                .setDefault("./watch");
-
-        ap.addArgument("-w", "--watermark")
-                .help("The path to the LinkedIn Watermark to search for to split pdfs")
-                .required(true)
-                .setDefault("./linkedin.watermark.png");
-
-        ap.addArgument("-s", "--solr")
-                .help("The url of the Solr server")
-                .required(true);
-
-        Namespace ns = ap.parseArgs(args);
-
-        watchPath = ns.getString("path");
-        watermark = ns.getString("watermark");
-        solrUrl = ns.getString("solr");
+    public static Arguments the() {
+        if (args != null) {
+            return args;
+        }
+        synchronized (MUTEX) {
+            Gson gs = new Gson();
+            try {
+                try (BufferedReader br = new BufferedReader(new FileReader(new File("./config.json")))) {
+                    Arguments.args = gs.fromJson(br, Arguments.class);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                System.exit(1);
+            }
+        }
+        return the();
     }
 
 }

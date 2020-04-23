@@ -6,13 +6,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class Main {
     public static void main(String[] args) throws Exception {
         AtomicBoolean isRunning = new AtomicBoolean(true);
-        Arguments parsedArgs = new Arguments(args);
-        FileWatcher fw = new FileWatcher(parsedArgs, isRunning);
+        FileWatcher fw = new FileWatcher(isRunning);
         Thread t = new Thread(fw::run);
         t.start();
         try(Scanner s = new Scanner(System.in)) {
             while (isRunning.get()) {
-                System.out.print("To stop enter q: ");
+                System.out.println("To stop enter q: ");
                 System.out.flush();
                 String in = s.nextLine();
                 if(in.equalsIgnoreCase("q")) {

@@ -1,0 +1,5 @@
+{
+	"WatchPath": "./watch",
+	"WatermarkPath": "./linkedin.watermark.png",
+	"SolrURL": "http://localhost:8983/solr/resumes"
+}
