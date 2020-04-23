@@ -22,6 +22,9 @@ public class Arguments {
     @SerializedName("SolrURL")
     private String solrUrl;
 
+    @SerializedName("MoveToPath")
+    private String moveToPath;
+
     public static Arguments the() {
         if (args != null) {
             return args;

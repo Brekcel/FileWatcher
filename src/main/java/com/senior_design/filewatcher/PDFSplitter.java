@@ -156,9 +156,6 @@ public class PDFSplitter implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        if (doc != null) {
-            doc.close();
-            doc = null;
-        }
+        doc.close();
     }
 }
