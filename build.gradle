@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id "io.freefair.lombok" version "5.0.0-rc4"
+    id 'application'
 }
 
 group 'com.senior_design'
@@ -36,3 +37,8 @@ task fullBuild(type: Copy) {
     from fatJar
     into "./bin/"
 }
+
+application {
+    mainClassName = 'com.senior_design.filewatcher.Main'
+}
+
