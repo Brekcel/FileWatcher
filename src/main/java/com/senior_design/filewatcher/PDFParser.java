@@ -99,7 +99,8 @@ public class PDFParser {
             //Gets the person's summary
             if (curState == CurState.Summary && this.text.contains("Summary")) {
                 findSummary();
-                summary = summary.replaceAll("\n", " ");
+
+                summary = summary.replaceAll("(\r\n|\n)", " ");
             }
 
             //Gets the person's Experience
@@ -114,7 +115,7 @@ public class PDFParser {
             if (curState == CurState.References && reference.contains("Profile Notes and Activity")) {
                 this.references = reference.substring(0, reference.lastIndexOf("Profile Notes and Activity")).replaceAll("\n", " ");
                 reference = reference.substring(reference.indexOf(")") + 1);
-                reference = reference.replaceAll("\n", " ");
+                reference = reference.replaceAll("(\r\n|\n)", " ");
                 this.notes = reference;
             } else {
                 this.references = reference;
