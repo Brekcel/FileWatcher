@@ -177,7 +177,7 @@ public class PDFParser {
                 throw new BadPDFException();
             }
             this.current_position = thirdLineOutput;
-            this.curState = CurState.Summary;
+            maybeTransition(scan.nextLine());
         }
 
         public void findSummary() {
@@ -195,31 +195,29 @@ public class PDFParser {
 
         public void findExperience() {
             //Finds the person's experience
-            ArrayList<String> output = new ArrayList<String>();
+            List<String> experiences = new ArrayList<>();
             StringBuilder paragraph = new StringBuilder();
             while (scan.hasNextLine()) {
                 String nextLine = scan.nextLine();
-                if (nextLine.isEmpty()) {
-                    if (paragraph.length() != 0) {
-                        output.add(paragraph.toString().replaceAll("\n", " "));
-                        paragraph = new StringBuilder();
-                    }
-                } else {
-                    if (maybeTransition(nextLine)) {
-                        break;
-                    }
-                    paragraph.append(nextLine).append(" ");
+                if (maybeTransition(nextLine)) {
+                    break;
+                }
+                paragraph.append(nextLine).append('\n');
+                if (nextLine.matches(".*[0-9]+ year(s?) [0-9]+ month(s?).*")) {
+                    experiences.add(paragraph.toString());
+                    paragraph = new StringBuilder();
                 }
             }
-
-
+            if (paragraph.length() != 0) {
+                experiences.add(paragraph.toString());
+            }
             String[] arr = new String[0];
-            this.experience = output.toArray(arr);
+            this.experience = experiences.toArray(arr);
         }
 
         public void findEducation() {
             //Finds the person's education
-            ArrayList<String> output = new ArrayList<String>();
+            ArrayList<String> output = new ArrayList<>();
             while (scan.hasNextLine()) {
                 String nextLine = scan.nextLine();
                 if (!nextLine.isEmpty()) {
@@ -232,7 +230,6 @@ public class PDFParser {
             String[] arr = new String[0];
             this.education = output.toArray(arr);
         }
-
 
         @Override
         public void close() throws Exception {
@@ -261,16 +258,25 @@ public class PDFParser {
     }
 
     public void run() {
-        List<SolrInputDocument> docs = Arrays.stream(this.docs).parallel().map(pdfDoc -> {
-            try (SolrData data = new SolrData(pdfDoc)) {
-                return data.toSolrDoc();
+        List<SolrInputDocument> docs = Arrays.stream(this.docs)
+//                .parallel()
+                .map(pdfDoc -> {
+                    try (SolrData data = new SolrData(pdfDoc)) {
+                        return data.toSolrDoc();
+                    } catch (Exception e) {
+                        if (!(e instanceof SolrData.BadPDFException)) {
+                            e.printStackTrace();
+                        }
+                        return null;
+                    }
+                }).filter(Objects::nonNull).collect(Collectors.toList());
+        for (PDDocument doc : this.docs) {
+            try {
+                doc.close();
             } catch (Exception e) {
-                if (!(e instanceof SolrData.BadPDFException)) {
-                    e.printStackTrace();
-                }
-                return null;
+                e.printStackTrace();
             }
-        }).filter(Objects::nonNull).collect(Collectors.toList());
+        }
         if (docs.size() <= 0) {
             System.out.println("No good resumes from that batch");
             return;

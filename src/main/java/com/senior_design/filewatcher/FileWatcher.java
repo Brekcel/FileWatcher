@@ -22,12 +22,14 @@ public class FileWatcher {
 
     public void run() {
         while (true) {
+            String watchPath = Arguments.the().getWatchPath();
+            String moveToPath = Arguments.the().getMoveToPath();
             for (WatchEvent<?> event : watchKey.pollEvents()) {
                 WatchEvent.Kind<?> kind = event.kind();
                 if (kind == OVERFLOW) {
                     continue;
                 }
-
+                System.out.println(kind);
                 Object context = event.context();
                 if (!(context instanceof Path)) {
                     break;
@@ -45,7 +47,10 @@ public class FileWatcher {
                         PDFParser parser = new PDFParser(docs);
                         parser.run();
                     }
-                    f.delete();
+                    String path = f.getPath();
+                    System.out.println(path);
+                    String newPath = path.replace(watchPath, moveToPath);
+                    f.renameTo(new File(newPath));
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
