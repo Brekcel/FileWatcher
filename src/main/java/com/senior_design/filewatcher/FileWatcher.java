@@ -12,17 +12,15 @@ import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
 
 public class FileWatcher {
     private WatchService watchService;
-    private WatchKey watchKey;
-    private Path watchPath;
-    private Arguments args;
-    private AtomicBoolean isRunning;
+    private final WatchKey watchKey;
+    private final Path watchPath;
+    private final AtomicBoolean isRunning;
 
-    public FileWatcher(Arguments args, AtomicBoolean isRunning) throws IOException {
+    public FileWatcher(AtomicBoolean isRunning) throws IOException {
         this.isRunning = isRunning;
-        this.watchPath = Paths.get(args.getWatchPath());
+        this.watchPath = Paths.get(Arguments.the().getWatchPath());
         this.watchService = FileSystems.getDefault().newWatchService();
         this.watchKey = this.watchPath.register(this.watchService, ENTRY_CREATE);
-        this.args = args;
     }
 
     public void run() {
@@ -45,11 +43,10 @@ public class FileWatcher {
                 Path actualPath = Paths.get(this.watchPath.toString(), fileName.toString());
                 try {
                     File f = actualPath.toFile();
-                    try (PDFSplitter splitter = new PDFSplitter(args, f)) {
+                    try (PDFSplitter splitter = new PDFSplitter(f)) {
                         PDDocument[] docs = splitter.splitDoc();
-                        try (PDFParser parser = new PDFParser(args, docs)) {
-                            parser.run();
-                        }
+                        PDFParser parser = new PDFParser(docs);
+                        parser.run();
                     }
                     f.delete();
                 } catch (Exception e) {

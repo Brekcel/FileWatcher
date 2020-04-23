@@ -11,9 +11,16 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class PDFParser implements AutoCloseable {
+public class PDFParser {
 
-    static class SolrData {
+    static class SolrData implements AutoCloseable {
+        PDDocument doc;
+        Scanner scan;
+        String text;
+        CurState curState;
+
+        boolean parsed = false;
+
         String name;
         String location;
         String current_position;
@@ -22,17 +29,231 @@ public class PDFParser implements AutoCloseable {
         String[] education;
         String references;
         String notes;
+
+        enum CurState {
+            Name,
+            Summary,
+            Experience,
+            Education,
+            References,
+        }
+
+        boolean maybeTransition(String line) {
+            switch (line.toLowerCase()) {
+                case "summary": {
+                    this.curState = CurState.Summary;
+                    return true;
+                }
+                case "experience": {
+                    this.curState = CurState.Experience;
+                    return true;
+                }
+                case "education": {
+                    this.curState = CurState.Education;
+                    return true;
+                }
+                case "references": {
+                    this.curState = CurState.References;
+                    return true;
+                }
+                default: {
+                    return false;
+                }
+            }
+        }
+
+        static class BadPDFException extends Exception {
+        }
+
+        static boolean stringEmpty(String s) {
+            return s == null || s.isEmpty() || s.trim().isEmpty();
+        }
+
+        public SolrData(PDDocument doc) throws IOException {
+            this.doc = doc;
+            PDFTextStripper textStripper = new PDFTextStripper();
+
+            textStripper.setStartPage(0);
+            textStripper.setEndPage(doc.getNumberOfPages());
+
+            //removes unknown characters
+            String wordsInHandler = textStripper.getText(doc).replaceAll("[^\\x00-\\x7F]", " ");
+            this.text = wordsInHandler;
+            this.scan = new Scanner(wordsInHandler);
+        }
+
+        public void parse() throws BadPDFException {
+            if (parsed) {
+                return;
+            }
+            this.parsed = true;
+            //Gets the person's name, location, and title
+            findPerson();
+            //Checks if there are reference
+            String reference = "";
+            if (this.text.contains("people have recommended")) {
+                reference = this.text.substring(this.text.indexOf("people have recommended"));
+                reference = reference.substring(reference.indexOf("\""));
+            }
+
+            //Gets the person's summary
+            if (curState == CurState.Summary && this.text.contains("Summary")) {
+                findSummary();
+                summary = summary.replaceAll("\n", " ");
+            }
+
+            //Gets the person's Experience
+            if (curState == CurState.Experience && this.text.contains("Experience")) {
+                findExperience();
+            }
+            //Gets the person's Education
+            if (curState == CurState.Education && this.text.contains("Education")) {
+                findEducation();
+            }
+
+            if (curState == CurState.References && reference.contains("Profile Notes and Activity")) {
+                this.references = reference.substring(0, reference.lastIndexOf("Profile Notes and Activity")).replaceAll("\n", " ");
+                reference = reference.substring(reference.indexOf(")") + 1);
+                reference = reference.replaceAll("\n", " ");
+                this.notes = reference;
+            } else {
+                this.references = reference;
+            }
+        }
+
+        public SolrInputDocument toSolrDoc() throws BadPDFException {
+            this.parse();
+            SolrInputDocument doc = new SolrInputDocument();
+
+            doc.addField("name", this.name);
+
+            doc.addField("location", this.location);
+
+            doc.addField("current_position", this.current_position);
+
+            if (this.summary != null)
+                doc.addField("summary", this.summary);
+
+            if (this.experience != null)
+                doc.addField("experience", this.experience);
+
+            if (this.education != null)
+                doc.addField("education", this.education);
+
+            if (this.references != null)
+                doc.addField("references", this.references);
+
+            if (this.notes != null)
+                doc.addField("notes", this.notes);
+
+            return doc;
+        }
+
+        public void findPerson() throws BadPDFException {
+            //Finds the person's name, location, and current position
+            String firstLine = scan.nextLine();
+            if (stringEmpty(firstLine) || maybeTransition(firstLine)) {
+                throw new BadPDFException();
+            }
+            this.name = firstLine;
+
+            String secondLine = scan.nextLine();
+            if (stringEmpty(secondLine) || maybeTransition(secondLine)) {
+                throw new BadPDFException();
+            }
+            this.location = secondLine;
+
+            StringBuilder thirdLine = new StringBuilder();
+            while (scan.hasNextLine()) {
+                String nextLine = scan.nextLine();
+                if (stringEmpty(nextLine) || maybeTransition(nextLine)) {
+                    break;
+                } else
+                    thirdLine.append(nextLine).append(" ");
+            }
+            String thirdLineOutput = thirdLine.toString();
+            if (stringEmpty(thirdLineOutput)) {
+                throw new BadPDFException();
+            }
+            this.current_position = thirdLineOutput;
+            this.curState = CurState.Summary;
+        }
+
+        public void findSummary() {
+            //Finds the person's summary
+            StringBuilder output = new StringBuilder();
+            while (scan.hasNextLine()) {
+                String nextLine = scan.nextLine();
+                if (maybeTransition(nextLine) && curState != CurState.Summary) {
+                    break;
+                }
+                output.append(nextLine).append(" ");
+            }
+            this.summary = output.toString();
+        }
+
+        public void findExperience() {
+            //Finds the person's experience
+            ArrayList<String> output = new ArrayList<String>();
+            StringBuilder paragraph = new StringBuilder();
+            while (scan.hasNextLine()) {
+                String nextLine = scan.nextLine();
+                if (nextLine.isEmpty()) {
+                    if (paragraph.length() != 0) {
+                        output.add(paragraph.toString().replaceAll("\n", " "));
+                        paragraph = new StringBuilder();
+                    }
+                } else {
+                    if (maybeTransition(nextLine)) {
+                        break;
+                    }
+                    paragraph.append(nextLine).append(" ");
+                }
+            }
+
+
+            String[] arr = new String[0];
+            this.experience = output.toArray(arr);
+        }
+
+        public void findEducation() {
+            //Finds the person's education
+            ArrayList<String> output = new ArrayList<String>();
+            while (scan.hasNextLine()) {
+                String nextLine = scan.nextLine();
+                if (!nextLine.isEmpty()) {
+                    if (maybeTransition(nextLine)) {
+                        break;
+                    }
+                    output.add(nextLine);
+                }
+            }
+            String[] arr = new String[0];
+            this.education = output.toArray(arr);
+        }
+
+
+        @Override
+        public void close() throws Exception {
+            if (this.doc != null) {
+                this.doc.close();
+            }
+            if (this.scan != null) {
+                this.scan.close();
+            }
+        }
+
     }
 
     static SolrClient SOLR_CLIENT;
     final static Object CLIENT_MUTEX = new Object();
 
-    private PDDocument[] docs;
+    private final PDDocument[] docs;
 
-    public PDFParser(Arguments args, PDDocument[] docs) {
+    public PDFParser(PDDocument[] docs) {
         synchronized (CLIENT_MUTEX) {
             if (SOLR_CLIENT == null) {
-                SOLR_CLIENT = new HttpSolrClient.Builder(args.getSolrUrl()).build();
+                SOLR_CLIENT = new HttpSolrClient.Builder(Arguments.the().getSolrUrl()).build();
             }
         }
         this.docs = docs;
@@ -40,41 +261,21 @@ public class PDFParser implements AutoCloseable {
 
     public void run() {
         List<SolrInputDocument> docs = Arrays.stream(this.docs).parallel().map(pdfDoc -> {
-            try {
-                SolrInputDocument doc = new SolrInputDocument();
-                PDFTextStripper textStripper = new PDFTextStripper();
-
-                textStripper.setStartPage(0);
-                textStripper.setEndPage(pdfDoc.getNumberOfPages());
-                SolrData data = fetchData(textStripper.getText(pdfDoc));
-
-                if (data == null) {
-                    return null;
-                }
-                doc.addField("name", data.name);
-
-                doc.addField("location", data.location);
-
-                doc.addField("current_position", data.current_position);
-                if (data.summary != null)
-                    doc.addField("summary", data.summary);
-                if (data.experience != null)
-                    doc.addField("experience", data.experience);
-                if (data.education != null)
-                    doc.addField("education", data.education);
-                if (data.references != null)
-                    doc.addField("references", data.references);
-                if (data.notes != null)
-                    doc.addField("notes", data.notes);
-                return doc;
-
+            try (SolrData data = new SolrData(pdfDoc)) {
+                return data.toSolrDoc();
             } catch (Exception e) {
-                e.printStackTrace();
+                if (!(e instanceof SolrData.BadPDFException)) {
+                    e.printStackTrace();
+                }
                 return null;
             }
         }).filter(Objects::nonNull).collect(Collectors.toList());
-
+        if (docs.size() <= 0) {
+            System.out.println("No good resumes from that batch");
+            return;
+        }
         try {
+            System.out.println("Adding " + docs.size() + " resumes to Solr");
             SOLR_CLIENT.add(docs);
             SOLR_CLIENT.commit();
         } catch (SolrServerException | IOException e) {
@@ -82,190 +283,5 @@ public class PDFParser implements AutoCloseable {
         }
     }
 
-    public static ArrayList<String> findPerson(String content) {
-        //Finds the person's name, location, and current position
-        ArrayList<String> output = new ArrayList<String>();
-
-        Scanner scan = new Scanner(content);
-        scan.nextLine();
-
-        String firstLine = scan.nextLine();
-        if (firstLine.compareTo("") == 0) {
-            scan.close();
-            return output;
-        }
-        output.add(firstLine);
-
-        String secondLine = scan.nextLine();
-        if (secondLine.compareTo("") == 0) {
-            scan.close();
-            return output;
-        }
-        output.add(secondLine);
-
-        String thirdLine = "";
-        while (scan.hasNextLine()) {
-            String nextLine = scan.nextLine();
-            if (nextLine.compareTo("") == 0) {
-                break;
-            } else
-                thirdLine += nextLine + " ";
-        }
-        if (thirdLine.compareTo("") != 0)
-            output.add(thirdLine);
-
-
-        scan.close();
-
-        return output;
-    }
-
-    public String findSummary(String content) {
-        //Finds the person's summary
-        String output = "";
-        Scanner scan = new Scanner(content);
-        boolean found = false; //This checks the scanner is at the summary area
-        while (scan.hasNextLine()) {
-            String nextLine = scan.nextLine();
-            if (found && nextLine.compareTo("") != 0) {
-                if (nextLine.compareTo("Experience") == 0 ||
-                        nextLine.compareTo("Education") == 0)
-                    break;
-                output += nextLine + " ";
-            } else if (nextLine.compareTo("Summary") != 0)
-                continue;
-            else
-                found = true;
-
-        }
-        scan.close();
-
-
-        return output;
-
-    }
-
-    public ArrayList<String> findExperience(String content) {
-        //Finds the person's experience
-        ArrayList<String> output = new ArrayList<String>();
-        Scanner scan = new Scanner(content);
-        boolean found = false; //This checks the scanner is at the Experience area
-        String paragraph = "";
-        while (scan.hasNextLine()) {
-            String nextLine = scan.nextLine();
-            if (found) {
-                if (nextLine.compareTo("") == 0) {
-                    if (paragraph.compareTo("") != 0) {
-                        paragraph = paragraph.replaceAll("\n", " ");
-                        output.add(paragraph);
-                        paragraph = "";
-                    }
-                    continue;
-                } else {
-                    if (nextLine.compareTo("Summary") == 0 ||
-                            nextLine.compareTo("Education") == 0)
-                        break;
-                    paragraph += nextLine + " ";
-                }
-            } else if (nextLine.compareTo("Experience") != 0)
-                continue;
-            else
-                found = true;
-
-        }
-        scan.close();
-
-
-        return output;
-    }
-
-    public ArrayList<String> findEducation(String content) {
-        //Finds the person's education
-        ArrayList<String> output = new ArrayList<String>();
-        Scanner scan = new Scanner(content);
-        boolean found = false; //This checks the scanner is at the Education area
-        while (scan.hasNextLine()) {
-            String nextLine = scan.nextLine();
-            if (found && nextLine.compareTo("") != 0) {
-                if (nextLine.compareTo("Experience") == 0 ||
-                        nextLine.compareTo("Summary") == 0)
-                    break;
-                output.add(nextLine);
-            } else if (nextLine.compareTo("Education") != 0)
-                continue;
-            else
-                found = true;
-
-        }
-        scan.close();
-
-
-        return output;
-    }
-
-    public SolrData fetchData(String wordsInHandler) {
-        //Converts the contents of the pdf into a json object
-        SolrData data = new SolrData();
-
-        //Gets the person's name, location, and title
-        ArrayList<String> contents;
-        contents = findPerson(wordsInHandler);
-
-        wordsInHandler = wordsInHandler.replaceAll("[^\\x00-\\x7F]", " ");//removes unknown characters
-
-        if (contents.size() == 3) {
-            data.name = contents.get(0);
-            data.location = contents.get(1);
-            data.current_position = contents.get(2);
-        } else
-            return null;
-
-        //Checks if there are reference
-        String reference = "";
-        if (wordsInHandler.contains("people have recommended")) {
-            reference = wordsInHandler.substring(wordsInHandler.indexOf("people have recommended"));
-            reference = reference.substring(reference.indexOf("\""));
-            wordsInHandler = wordsInHandler.substring(0, wordsInHandler.lastIndexOf(contents.get(0)));
-        } else {
-            wordsInHandler = wordsInHandler.substring(0, wordsInHandler.lastIndexOf(contents.get(0)));
-        }
-
-        //Gets the person's summary
-        if (wordsInHandler.contains("Summary")) {
-            String summary = findSummary(wordsInHandler);
-            summary = summary.replaceAll("\n", " ");
-            data.summary = summary;
-        }
-        //Gets the person's Experience
-        if (wordsInHandler.contains("Experience")) {
-            contents = findExperience(wordsInHandler);
-            String[] arr = new String[0];
-            data.experience = contents.toArray(arr);
-        }
-        //Gets the person's Education
-        if (wordsInHandler.contains("Education")) {
-            contents = findEducation(wordsInHandler);
-            String[] arr = new String[0];
-            data.education = contents.toArray(arr);
-        }
-
-        if (reference.contains("Profile Notes and Activity")) {
-            data.references = reference.substring(0, reference.lastIndexOf("Profile Notes and Activity")).replaceAll("\n", " ");
-            reference = reference.substring(reference.indexOf(")") + 1);
-            reference = reference.replaceAll("\n", " ");
-            data.notes = reference;
-        } else
-            data.references = reference;
-
-
-        return data;
-    }
-
-    @Override
-    public void close() throws Exception {
-        for (PDDocument doc : this.docs) {
-            doc.close();
-        }
-    }
 
 }
