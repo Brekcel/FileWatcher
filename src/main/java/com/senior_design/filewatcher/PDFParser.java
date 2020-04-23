@@ -243,23 +243,17 @@ public class PDFParser {
 
     }
 
-    static SolrClient SOLR_CLIENT;
-    final static Object CLIENT_MUTEX = new Object();
+    private final static SolrClient SOLR_CLIENT = new HttpSolrClient.Builder(Arguments.the().getSolrUrl()).build();
 
     private final PDDocument[] docs;
 
     public PDFParser(PDDocument[] docs) {
-        synchronized (CLIENT_MUTEX) {
-            if (SOLR_CLIENT == null) {
-                SOLR_CLIENT = new HttpSolrClient.Builder(Arguments.the().getSolrUrl()).build();
-            }
-        }
         this.docs = docs;
     }
 
     public void run() {
         List<SolrInputDocument> docs = Arrays.stream(this.docs)
-//                .parallel()
+                .parallel()
                 .map(pdfDoc -> {
                     try (SolrData data = new SolrData(pdfDoc)) {
                         return data.toSolrDoc();
@@ -278,7 +272,7 @@ public class PDFParser {
             }
         }
         if (docs.size() <= 0) {
-            System.out.println("No good resumes from that batch");
+            System.out.println("No good resumes from that pdf");
             return;
         }
         try {

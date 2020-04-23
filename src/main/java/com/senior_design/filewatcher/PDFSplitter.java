@@ -15,7 +15,9 @@ import org.opencv.imgproc.Imgproc;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,22 +37,38 @@ public class PDFSplitter implements AutoCloseable {
         }
     }
 
-    private static final Object MUTEX = new Object();
-    private static Mat linkedInTemplate;
+    private static final Mat LINKED_IN_TEMPLATE;
+
+    static {
+        OpenCV.loadLocally();
+        LINKED_IN_TEMPLATE = Imgcodecs.imread(Arguments.the().getWatermark(), Imgcodecs.IMREAD_GRAYSCALE);
+    }
 
     PDDocument doc;
     PDFRenderer pdr;
     final Object renderMutex = new Object();
 
-    public PDFSplitter(File file) throws IOException {
-        doc = PDDocument.load(file);
-        pdr = new PDFRenderer(doc);
-        synchronized (MUTEX) {
-            if (linkedInTemplate == null) {
-                OpenCV.loadLocally();
-                linkedInTemplate = Imgcodecs.imread(Arguments.the().getWatermark(), Imgcodecs.IMREAD_GRAYSCALE);
+    public PDFSplitter(File file) throws IOException, InterruptedException {
+        BufferedInputStream bs = null;
+        int counter = 0;
+        while (bs == null) {
+            if (counter > 25) {
+                throw new IOException("Unable to open document");
+            }
+            try {
+                bs = new BufferedInputStream(new FileInputStream(file));
+                bs.mark(1);
+                if (bs.read() == -1) {
+                    throw new IOException("Unexpected EOF");
+                }
+                bs.reset();
+            } catch (Exception e) {
+                counter += 1;
+                Thread.sleep(1000);
             }
         }
+        doc = PDDocument.load(bs);
+        pdr = new PDFRenderer(doc);
     }
 
     public PDDocument[] splitDoc() throws IOException {
@@ -69,11 +87,11 @@ public class PDFSplitter implements AutoCloseable {
                     Mat page = new Mat(bi.getHeight(), bi.getWidth(), CvType.CV_8UC1);
                     page.put(0, 0, ((DataBufferByte) bi.getData().getDataBuffer()).getData());
 
-                    int result_cols = page.cols() - linkedInTemplate.cols() + 1;
-                    int result_rows = page.rows() - linkedInTemplate.rows() + 1;
+                    int result_cols = page.cols() - LINKED_IN_TEMPLATE.cols() + 1;
+                    int result_rows = page.rows() - LINKED_IN_TEMPLATE.rows() + 1;
 
                     Mat result = new Mat(result_rows, result_cols, CvType.CV_8UC1);
-                    Imgproc.matchTemplate(page, linkedInTemplate, result, Imgproc.TM_CCOEFF);
+                    Imgproc.matchTemplate(page, LINKED_IN_TEMPLATE, result, Imgproc.TM_CCOEFF);
                     Core.normalize(result, result, 0, 1, Core.NORM_MINMAX, -1, new Mat());
 
                     Core.MinMaxLocResult mmr = Core.minMaxLoc(result);
