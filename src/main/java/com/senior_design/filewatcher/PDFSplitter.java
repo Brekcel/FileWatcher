@@ -57,7 +57,7 @@ public class PDFSplitter implements AutoCloseable {
         ArrayList<EndPagePair> splitPages = IntStream.range(0, doc.getNumberOfPages())
                 .parallel()
                 .filter(i -> {
-                    BufferedImage bi = null;
+                    BufferedImage bi;
                     try {
                         synchronized (renderMutex) {
                             bi = pdr.renderImage(i, 1, ImageType.GRAY);
@@ -107,13 +107,13 @@ public class PDFSplitter implements AutoCloseable {
                             int curIdx = 0;
                             {
                                 int endPageTmp = endPage;
-                                while (pageText.toString().endsWith("\"\r\n")) {
+                                while (pageText.toString().endsWith("\"" + System.lineSeparator())) {
                                     pageText.append(stripPage.apply(endPageTmp + 1));
                                     endPageTmp += 1;
                                 }
                             }
                             while (true) {
-                                curIdx = pageText.indexOf("\"\r\n\u2014", curIdx);
+                                curIdx = pageText.indexOf("\"" + System.lineSeparator() + "\u2014", curIdx);
                                 if (curIdx == -1) {
                                     break;
                                 }
@@ -131,7 +131,6 @@ public class PDFSplitter implements AutoCloseable {
                     return pair;
                 }).collect(Collectors
                         .toCollection(ArrayList::new));
-
 
         int start = 1;
 
