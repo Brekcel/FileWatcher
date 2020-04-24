@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.util.function.Consumer;
 
-import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
 
 public class FileWatcher {
@@ -26,7 +26,7 @@ public class FileWatcher {
         makeIfNotExists.accept(Arguments.the().getWatchPath());
         makeIfNotExists.accept(Arguments.the().getMoveToPath());
         try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
-            watchPath.register(watchService, ENTRY_MODIFY);
+            watchPath.register(watchService, ENTRY_CREATE);
             while (true) {
                 String normalizedWatchPath = Arguments.the().getWatchPath().replace("/", File.separator).replace("\\", File.separator);
                 String normalizedMoveToPAth = Arguments.the().getMoveToPath().replace("/", File.separator).replace("\\", File.separator);

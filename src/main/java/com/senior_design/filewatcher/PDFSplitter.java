@@ -19,6 +19,7 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.channels.FileLock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -58,7 +59,8 @@ public class PDFSplitter implements AutoCloseable {
             }
             Thread.sleep(1000);
             try {
-                BufferedInputStream bsTest = new BufferedInputStream(new FileInputStream(file));
+                FileInputStream fis = new FileInputStream(file);
+                BufferedInputStream bsTest = new BufferedInputStream(fis);
                 bsTest.mark(1);
                 if (bsTest.read() == -1) {
                     throw new IOException("Unexpected EOF");
