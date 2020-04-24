@@ -42,13 +42,17 @@ public class FileWatcher {
                         break;
                     }
                     Path fileName = (Path) event.context();
+                    String fileString = fileName.toString();
                     // TMP Files
-                    if (fileName.toString().endsWith("~")) {
+                    if (!fileString.endsWith(".pdf")) {
                         continue;
                     }
-                    Path actualPath = Paths.get(watchPath.toString(), fileName.toString());
+                    Path actualPath = Paths.get(watchPath.toString(), fileString);
                     try {
                         File f = actualPath.toFile();
+                        if (!f.exists()) {
+                            continue;
+                        }
                         try (PDFSplitter splitter = new PDFSplitter(f)) {
                             PDDocument[] docs = splitter.splitDoc();
                             PDFParser parser = new PDFParser(docs);
