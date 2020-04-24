@@ -164,10 +164,10 @@ public class PDFSplitter implements AutoCloseable {
             pdfSpliiter.setStartPage(start);
             pdfSpliiter.setEndPage(endPage.lastPageOfResume - 1);
             List<PDDocument> splitDocs = pdfSpliiter.split(doc);
-            start = endPage.lastPageOfRecommends + 1;
             if (splitDocs.size() < 1) {
                 continue;
             }
+            start = endPage.lastPageOfRecommends + 1;
             docs.add(splitDocs.get(0));
             for (int j = 1; j < splitDocs.size(); j += 1) {
                 splitDocs.get(j).close();
