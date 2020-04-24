@@ -19,7 +19,6 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.channels.FileLock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -156,23 +155,26 @@ public class PDFSplitter implements AutoCloseable {
 
         int start = 1;
 
-        PDDocument[] docs = new PDDocument[splitPages.size()];
+        ArrayList<PDDocument> docs = new ArrayList<>();
 
         for (int i = 0; i < splitPages.size(); i += 1) {
             Splitter pdfSpliiter = new Splitter();
+            pdfSpliiter.setSplitAtPage(Integer.MAX_VALUE);
             EndPagePair endPage = splitPages.get(i);
             pdfSpliiter.setStartPage(start);
-            pdfSpliiter.setEndPage(endPage.lastPageOfResume);
-            pdfSpliiter.setSplitAtPage(endPage.lastPageOfResume - start);
+            pdfSpliiter.setEndPage(endPage.lastPageOfResume - 1);
             List<PDDocument> splitDocs = pdfSpliiter.split(doc);
             start = endPage.lastPageOfRecommends + 1;
-            docs[i] = splitDocs.get(0);
+            if (splitDocs.size() < 1) {
+                continue;
+            }
+            docs.add(splitDocs.get(0));
             for (int j = 1; j < splitDocs.size(); j += 1) {
                 splitDocs.get(j).close();
             }
         }
-
-        return docs;
+        PDDocument[] arr = new PDDocument[0];
+        return docs.toArray(arr);
 
     }
 
