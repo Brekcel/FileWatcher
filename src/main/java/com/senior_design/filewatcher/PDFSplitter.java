@@ -49,24 +49,26 @@ public class PDFSplitter implements AutoCloseable {
     final Object renderMutex = new Object();
 
     public PDFSplitter(File file) throws IOException, InterruptedException {
+        System.out.println("Processing: " + file.getPath());
         BufferedInputStream bs = null;
         int counter = 0;
-        while (bs == null) {
+        do {
             if (counter > 25) {
                 throw new IOException("Unable to open document");
             }
+            Thread.sleep(1000);
             try {
-                bs = new BufferedInputStream(new FileInputStream(file));
-                bs.mark(1);
-                if (bs.read() == -1) {
+                BufferedInputStream bsTest = new BufferedInputStream(new FileInputStream(file));
+                bsTest.mark(1);
+                if (bsTest.read() == -1) {
                     throw new IOException("Unexpected EOF");
                 }
-                bs.reset();
+                bsTest.reset();
+                bs = bsTest;
             } catch (Exception e) {
                 counter += 1;
-                Thread.sleep(1000);
             }
-        }
+        } while (bs == null);
         doc = PDDocument.load(bs);
         pdr = new PDFRenderer(doc);
     }

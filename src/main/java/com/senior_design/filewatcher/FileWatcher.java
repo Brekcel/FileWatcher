@@ -5,6 +5,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.function.Consumer;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
@@ -16,6 +17,14 @@ public class FileWatcher {
 
     public static void run() throws IOException, InterruptedException {
         Path watchPath = Paths.get(Arguments.the().getWatchPath());
+        Consumer<String> makeIfNotExists = path -> {
+            File f = new File(path);
+            if (!f.exists()) {
+                f.mkdirs();
+            }
+        };
+        makeIfNotExists.accept(Arguments.the().getWatchPath());
+        makeIfNotExists.accept(Arguments.the().getMoveToPath());
         try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
             watchPath.register(watchService, ENTRY_MODIFY);
             while (true) {
