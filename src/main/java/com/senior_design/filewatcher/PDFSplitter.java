@@ -125,14 +125,13 @@ public class PDFSplitter implements AutoCloseable {
                         int numCount = Integer.parseInt(recommendedLine.substring(0, recommendedLine.indexOf(' ')));
                         StringBuilder pageText = new StringBuilder(assumedEndPageText);
                         while (true) {
-                            int curIdx = 0;
-                            {
-                                int endPageTmp = endPage;
-                                while (pageText.toString().endsWith("\"" + System.lineSeparator())) {
-                                    pageText.append(stripPage.apply(endPageTmp + 1));
-                                    endPageTmp += 1;
-                                }
+
+                            while (pageText.toString().endsWith("\"" + System.lineSeparator())) {
+                                pageText.append(stripPage.apply(endPage + 1));
+                                endPage += 1;
                             }
+
+                            int curIdx = 0;
                             while (true) {
                                 curIdx = pageText.indexOf("\"" + System.lineSeparator() + "\u2014", curIdx);
                                 if (curIdx == -1) {
@@ -141,13 +140,14 @@ public class PDFSplitter implements AutoCloseable {
                                 curIdx += 1;
                                 numCount -= 1;
                             }
-                            if (numCount == 0) {
+                            if (numCount <= 0) {
                                 break;
                             }
                             endPage += 1;
                             pageText = new StringBuilder(stripPage.apply(endPage));
                         }
                     }
+
                     pair.lastPageOfRecommends = endPage;
                     return pair;
                 }).collect(Collectors

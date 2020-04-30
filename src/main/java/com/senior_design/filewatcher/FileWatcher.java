@@ -21,6 +21,14 @@ public class FileWatcher {
             File f = new File(path);
             if (!f.exists()) {
                 f.mkdirs();
+            } else {
+                File[] files = f.listFiles();
+                if (files == null) {
+                    return;
+                }
+                for (File innerFile : files) {
+                    innerFile.delete();
+                }
             }
         };
         makeIfNotExists.accept(Arguments.the().getWatchPath());

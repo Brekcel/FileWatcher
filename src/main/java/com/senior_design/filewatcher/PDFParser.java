@@ -7,7 +7,6 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.common.SolrInputDocument;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -100,8 +99,6 @@ public class PDFParser {
             //Gets the person's summary
             if (curState == CurState.Summary && this.text.contains("Summary")) {
                 findSummary();
-
-                summary = summary.replaceAll("(\r\n|\n)", " ");
             }
 
             //Gets the person's Experience
@@ -178,7 +175,6 @@ public class PDFParser {
                 throw new BadPDFException();
             }
             this.current_position = thirdLineOutput;
-            maybeTransition(scan.nextLine());
         }
 
         public void findSummary() {
@@ -186,13 +182,17 @@ public class PDFParser {
             StringBuilder output = new StringBuilder();
             while (scan.hasNextLine()) {
                 String nextLine = scan.nextLine();
-                if (maybeTransition(nextLine) && curState != CurState.Summary) {
+                if (maybeTransition(nextLine)) {
                     break;
                 }
-                output.append(nextLine).append(" ");
+                output.append(nextLine).append('\n');
             }
             this.summary = output.toString();
         }
+
+        static final String YEAR_MATCH = "[0-9]+ year(s?)";
+        static final String MONTH_MATCH = "[0-9]+ month(s?).*";
+        static final String TOTAL_MATCH = ".*(" + YEAR_MATCH + "|" + MONTH_MATCH + "|" + YEAR_MATCH + MONTH_MATCH + ")";
 
         public void findExperience() {
             //Finds the person's experience
@@ -204,7 +204,7 @@ public class PDFParser {
                     break;
                 }
                 paragraph.append(nextLine).append('\n');
-                if (nextLine.matches(".*[0-9]+ year(s?) [0-9]+ month(s?).*")) {
+                if (nextLine.matches(TOTAL_MATCH)) {
                     experiences.add(paragraph.toString());
                     paragraph = new StringBuilder();
                 }
